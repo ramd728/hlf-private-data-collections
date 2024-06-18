@@ -61,7 +61,34 @@ Content:
   }
 ]
 
-Slide 7: Deploying Chaincode with Collections Configuration Using CLI
+Slide 7: Update Chaincode
+
+Modify your chaincode to handle private data transactions. Use the PutPrivateData and GetPrivateData methods to store and retrieve data from the private collection.
+
+Example in Go:
+
+func (s *SmartContract) CreatePrivateAsset(ctx contractapi.TransactionContextInterface, assetID string, assetValue string) error {
+    privateData := map[string]interface{}{
+        "assetID": assetID,
+        "assetValue": assetValue,
+    }
+    privateDataBytes, err := json.Marshal(privateData)
+    if err != nil {
+        return fmt.Errorf("failed to marshal private data: %v", err)
+    }
+    return ctx.GetStub().PutPrivateData("privateDataCollection", assetID, privateDataBytes)
+}
+
+func (s *SmartContract) ReadPrivateAsset(ctx contractapi.TransactionContextInterface, assetID string) (string, error) {
+    privateDataBytes, err := ctx.GetStub().GetPrivateData("privateDataCollection", assetID)
+    if err != nil {
+        return "", fmt.Errorf("failed to read private data: %v", err)
+    }
+    return string(privateDataBytes), nil
+}
+
+
+Slide 8: Deploying Chaincode with Collections Configuration Using CLI
 Title:
 Deploying Chaincode with Collections Configuration Using CLI
 Content:
@@ -105,7 +132,7 @@ peer chaincode invoke \
   --tlsRootCertFiles /path/to/org1/tlscacerts/tlsca.org1.example.com-cert.pem \
   --tlsRootCertFiles /path/to/org2/tlscacerts/tlsca.org2.example.com-cert.pem
 
-Slide 8: Deploying Chaincode with Collections Configuration Using Fabric SDK
+Slide 9: Deploying Chaincode with Collections Configuration Using Fabric SDK
 Title:
 Deploying Chaincode with Collections Configuration Using Fabric SDK
 Content: Example using Fabric Node.js SDK:
