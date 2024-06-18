@@ -88,6 +88,7 @@ func (s *SmartContract) ReadPrivateAsset(ctx contractapi.TransactionContextInter
 }
 
 
+
 Slide 8: Deploying Chaincode with Collections Configuration Using CLI
 Title:
 Deploying Chaincode with Collections Configuration Using CLI
