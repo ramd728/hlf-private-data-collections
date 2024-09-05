@@ -236,3 +236,123 @@ func (s *SmartContract) GetPrivateData(ctx contractapi.TransactionContextInterfa
 - **Extract and Use Keys**: Get keys written in private data collections and use them to query private data via chaincode.
 
 This approach enables you to query private data indirectly using transaction events and keys written to the ledger.
+
+
+
+Here's an example of a Java listener for Hyperledger Fabric to listen for block events and extract private data keys.
+
+### Java Event Listener Example
+
+1. **Add Fabric SDK Dependencies**: Ensure you have the Fabric Java SDK dependencies in your `pom.xml` (if using Maven):
+
+```xml
+<dependencies>
+    <!-- Hyperledger Fabric Java SDK -->
+    <dependency>
+        <groupId>org.hyperledger.fabric-sdk-java</groupId>
+        <artifactId>fabric-sdk-java</artifactId>
+        <version>2.2.8</version> <!-- Use the latest stable version -->
+    </dependency>
+    <dependency>
+        <groupId>org.hyperledger.fabric-sdk-java</groupId>
+        <artifactId>fabric-gateway-java</artifactId>
+        <version>2.2.8</version>
+    </dependency>
+    <!-- Add other dependencies like logging, JSON parsing, etc., if needed -->
+</dependencies>
+```
+
+2. **Java Code for Event Listener**:
+
+```java
+import org.hyperledger.fabric.gateway.*;
+import org.hyperledger.fabric.sdk.BlockEvent;
+import org.hyperledger.fabric.sdk.TransactionEvent;
+import org.hyperledger.fabric.sdk.ChaincodeEvent;
+import org.hyperledger.fabric.sdk.TxReadWriteSetInfo;
+import org.hyperledger.fabric.sdk.TxReadWriteSetInfo.NsRwsetInfo;
+import org.hyperledger.fabric.sdk.BlockListener;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+
+public class FabricEventListener {
+
+    public static void main(String[] args) throws Exception {
+        // Load a network connection profile
+        Path walletPath = Paths.get("wallet");
+        Wallet wallet = Wallets.newFileSystemWallet(walletPath);
+        Path networkConfigPath = Paths.get("connection.json");
+
+        Gateway.Builder builder = Gateway.createBuilder()
+                .identity(wallet, "appUser")
+                .networkConfig(networkConfigPath)
+                .discovery(true);
+
+        try (Gateway gateway = builder.connect()) {
+            // Get the network and contract
+            Network network = gateway.getNetwork("mychannel");
+            Contract contract = network.getContract("mychaincode");
+
+            // Register a block listener
+            network.addBlockListener(new BlockListener() {
+                @Override
+                public void received(BlockEvent blockEvent) {
+                    System.out.println("Received block event: " + blockEvent.getBlockNumber());
+
+                    // Iterate through the transactions in the block
+                    for (TransactionEvent txEvent : blockEvent.getTransactionEvents()) {
+                        String txID = txEvent.getTransactionID();
+                        System.out.println("Transaction ID: " + txID);
+
+                        if (txEvent.isValid()) {
+                            // Get the read-write set for the transaction
+                            TxReadWriteSetInfo rwSetInfo = txEvent.getTxReadWriteSet();
+                            if (rwSetInfo != null) {
+                                // Iterate over namespaces in the read-write set
+                                for (NsRwsetInfo nsRwsetInfo : rwSetInfo.getNsRwsetInfos()) {
+                                    String namespace = nsRwsetInfo.getNamespace();
+                                    if (namespace.equals("collectionName")) { // Replace with your collection name
+                                        // Extract private data key(s) from write set
+                                        nsRwsetInfo.getRwset().getWritesList().forEach(write -> {
+                                            String privateDataKey = write.getKey();
+                                            System.out.println("Private Data Key: " + privateDataKey);
+
+                                            // You can now use this key to query private data using chaincode
+                                        });
+                                    }
+                                }
+                            }
+                        } else {
+                            System.out.println("Invalid transaction detected: " + txID);
+                        }
+                    }
+                }
+            });
+
+            System.out.println("Listening for block events...");
+            // Keep the listener running
+            Thread.sleep(Long.MAX_VALUE);
+        }
+    }
+}
+```
+
+### Explanation:
+
+1. **Gateway Setup**: Connects to the Fabric network using the `Gateway` API. It uses a wallet (`walletPath`) and a connection profile (`networkConfigPath`) to establish the connection.
+2. **Block Listener**: Registers a block listener using `network.addBlockListener()`. It listens for incoming block events and processes each transaction within the block.
+3. **Transaction Details**: For each transaction, checks if it is valid and then extracts the read-write set (`rwSetInfo`) to get the namespace-specific read-write set (`nsRwsetInfo`).
+4. **Extracting Keys**: Iterates through the write set to find keys written in a private data collection (`collectionName`). These keys are printed to the console, but you can modify the logic to use these keys for further operations.
+
+### Running the Code
+
+- Make sure your Java environment is correctly set up and has access to the Fabric network configuration files (`connection.json` and wallet).
+- Adjust the paths and collection names as per your network setup.
+- Compile and run the Java code, and it will listen for block events and output the transaction IDs and private data keys.
+
+### Summary
+
+By using this Java listener approach, you can capture block events in real-time, extract the necessary keys, and use them to query private data from the ledger.
+
