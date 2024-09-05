@@ -1,7 +1,7 @@
 # hlf-private-data-collections
 
 
-To query private data based on a transaction ID in Hyperledger Fabric, you cannot directly retrieve private data using the transaction ID itself. However, you can use the transaction ID to access the transaction details and get the key or identifier for which the private data was written, and then use that key to retrieve the private data from a specific collection.
+8To query private data based on a transaction ID in Hyperledger Fabric, you cannot directly retrieve private data using the transaction ID itself. However, you can use the transaction ID to access the transaction details and get the key or identifier for which the private data was written, and then use that key to retrieve the private data from a specific collection.
 
 Here's how you can approach this:
 
@@ -355,4 +355,109 @@ public class FabricEventListener {
 ### Summary
 
 By using this Java listener approach, you can capture block events in real-time, extract the necessary keys, and use them to query private data from the ledger.
+
+
+The output `"_lifecycle"` you're seeing is because `_lifecycle` is a reserved namespace used by Hyperledger Fabric to manage chaincode lifecycle operations, such as installing, approving, and committing chaincodes. The `_lifecycle` namespace is not related to your actual private data collections; instead, it reflects internal system-level operations.
+
+### Correct Way to Access Private Data Collection Information
+
+To access private data collection (PDC) information, you need to:
+
+1. **Listen for Chaincode Events**: Ensure that you're listening for events related to your specific chaincode and not just system events.
+2. **Understand the Namespace Structure**: In Hyperledger Fabric, private data collections are identified by their combination of the chaincode name and collection name, formatted as `<chaincodeName>~<collectionName>`.
+3. **Properly Configure the Event Listener**: Adjust the listener to correctly filter events from your application-specific chaincode and private data collection.
+
+### Updated Java Code to Filter Events from the Correct Namespace
+
+Here's the updated Java code to handle the private data collections correctly:
+
+```java
+import org.hyperledger.fabric.gateway.*;
+import org.hyperledger.fabric.sdk.BlockEvent;
+import org.hyperledger.fabric.sdk.TransactionEvent;
+import org.hyperledger.fabric.sdk.TxReadWriteSetInfo;
+import org.hyperledger.fabric.sdk.TxReadWriteSetInfo.NsRwsetInfo;
+import org.hyperledger.fabric.sdk.BlockListener;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+public class FabricEventListener {
+
+    public static void main(String[] args) throws Exception {
+        // Load a network connection profile
+        Path walletPath = Paths.get("wallet");
+        Wallet wallet = Wallets.newFileSystemWallet(walletPath);
+        Path networkConfigPath = Paths.get("connection.json");
+
+        Gateway.Builder builder = Gateway.createBuilder()
+                .identity(wallet, "appUser")
+                .networkConfig(networkConfigPath)
+                .discovery(true);
+
+        try (Gateway gateway = builder.connect()) {
+            // Get the network and contract
+            Network network = gateway.getNetwork("mychannel");
+            Contract contract = network.getContract("mychaincode");
+
+            // Register a block listener
+            network.addBlockListener(new BlockListener() {
+                @Override
+                public void received(BlockEvent blockEvent) {
+                    System.out.println("Received block event: " + blockEvent.getBlockNumber());
+
+                    // Iterate through the transactions in the block
+                    for (TransactionEvent txEvent : blockEvent.getTransactionEvents()) {
+                        String txID = txEvent.getTransactionID();
+                        System.out.println("Transaction ID: " + txID);
+
+                        if (txEvent.isValid()) {
+                            // Get the read-write set for the transaction
+                            TxReadWriteSetInfo rwSetInfo = txEvent.getTxReadWriteSet();
+                            if (rwSetInfo != null) {
+                                // Iterate over namespaces in the read-write set
+                                for (NsRwsetInfo nsRwsetInfo : rwSetInfo.getNsRwsetInfos()) {
+                                    String namespace = nsRwsetInfo.getNamespace();
+                                    
+                                    // Check if namespace corresponds to private data collection
+                                    if (namespace.startsWith("mychaincode~")) { // Replace "mychaincode" with your actual chaincode name
+                                        System.out.println("Namespace: " + namespace);
+
+                                        // Extract private data key(s) from write set
+                                        nsRwsetInfo.getRwset().getWritesList().forEach(write -> {
+                                            String privateDataKey = write.getKey();
+                                            System.out.println("Private Data Key: " + privateDataKey);
+
+                                            // You can now use this key to query private data using chaincode
+                                        });
+                                    }
+                                }
+                            }
+                        } else {
+                            System.out.println("Invalid transaction detected: " + txID);
+                        }
+                    }
+                }
+            });
+
+            System.out.println("Listening for block events...");
+            // Keep the listener running
+            Thread.sleep(Long.MAX_VALUE);
+        }
+    }
+}
+```
+
+### Explanation:
+
+1. **Namespace Check**: The code checks if the namespace starts with your specific chaincode name followed by `~`, indicating it's a namespace for a private data collection (e.g., `mychaincode~collectionName`).
+2. **Filtering Correct Namespace**: This ensures that only namespaces associated with your chaincode and its collections are processed, ignoring `_lifecycle` and other system namespaces.
+
+### Key Points:
+
+- **Namespace Format**: In Fabric, private data collection namespaces are named as `<chaincodeName>~<collectionName>`.
+- **Ensure Chaincode-Specific Events**: Ensure that the listener targets your specific chaincode, not just general events that may include system transactions.
+
+
+By using the correct namespace filtering, you'll be able to access the relevant private data collections.
 
